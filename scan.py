@@ -42,8 +42,17 @@ _CWE_MAP = {
     "AGENT_FRAMEWORK": "CWE-693",
 }
 
-repo_path = os.environ.get('SCAN_REPO_PATH', '.')
-sarif_output = os.environ.get('SARIF_OUTPUT', 'agenticqa-scan-results.sarif')
+def _safe_path(env_var: str, default: str, must_exist: bool = False) -> str:
+    """Resolve env var to a real path, preventing path traversal (CWE-22)."""
+    raw = os.environ.get(env_var, default)
+    resolved = os.path.realpath(raw)
+    if must_exist and not os.path.exists(resolved):
+        print(f"Warning: {env_var}={raw} does not exist, using default", file=sys.stderr)
+        resolved = os.path.realpath(default)
+    return resolved
+
+repo_path = _safe_path('SCAN_REPO_PATH', '.', must_exist=True)
+sarif_output = _safe_path('SARIF_OUTPUT', 'agenticqa-scan-results.sarif')
 fail_on_critical = os.environ.get('FAIL_ON_CRITICAL', 'false').lower() == 'true'
 fail_on_score_str = os.environ.get('FAIL_ON_SCORE', '0')
 try:
@@ -146,8 +155,8 @@ except Exception as e:
 
 
 # ── GitHub Step Summary ───────────────────────────────────────────────────────
-summary_file = os.environ.get('GITHUB_STEP_SUMMARY', '')
-if summary_file:
+summary_file = os.path.realpath(os.environ.get('GITHUB_STEP_SUMMARY', ''))
+if os.environ.get('GITHUB_STEP_SUMMARY', ''):
     score = int(attack_surface_score)
     if score >= 75:
         score_icon = '🔴'
@@ -224,8 +233,8 @@ if summary_file:
 
 
 # ── GitHub Output Variables ───────────────────────────────────────────────────
-github_output = os.environ.get('GITHUB_OUTPUT', '')
-if github_output:
+github_output = os.path.realpath(os.environ.get('GITHUB_OUTPUT', ''))
+if os.environ.get('GITHUB_OUTPUT', ''):
     with open(github_output, 'a') as fh:
         fh.write(f'findings_count={total_findings}\n')
         fh.write(f'critical_count={critical_count}\n')
